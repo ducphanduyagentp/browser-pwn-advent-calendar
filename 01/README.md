@@ -2,7 +2,7 @@
 
 ## Info
 
-* Date: 24/12/2020 - ongoing
+* Date: 24/12/2020 - 29/12/2020
 
 ## Resources
 
@@ -27,6 +27,9 @@
 	- For example:
 		- x + 1 + 1 + 1 is the expected range (smaller)
 		- x + 3 is the real range (larger)
+* WASM rwx page offset is different between versions
+* Shellcode generation
+	- pwntools shellcraft has execve utils but not sure why missing from latest documentation. It is on older documentation.
 
 ## Finding the correct commit from chromium version
 
