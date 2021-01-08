@@ -1,5 +1,16 @@
 # Task 02: More v8 internals - 35C3 krautflare
 
+## Info
+
+* Date: 06/01/2021 - on-going
+
+## Resources
+
+* https://abiondo.me/2019/01/02/exploiting-math-expm1-v8/
+* https://www.jaybosamiya.com/blog/2019/01/02/krautflare/
+* https://bugs.chromium.org/p/project-zero/issues/detail?id=1710
+* https://confpad.io/2019-04-03-frontcon-2019/7-v8-by-example-a-journey-through-the-compilation-pipeline
+
 ## Questions
 
 * Dive more into the pipeline. For this first time, I just follow some specific points of interest in the challenge. Will need to look more into each phase and what it does.
@@ -126,6 +137,38 @@ TODO
         * Math.expm1 is a Float64Expm1 node of type Number
         * Object.is is replaced by a NumberIsMinusZero of type Boolean, then goes into ChangeBitToTagged
 * With deopt
+    * First compilation is the same as before
+    * Second compilation differs
+    * Typer phase
+
+        ![](img/exp-1-deopt-typer.png)
+        * Math.expm1: JSCall of type Union(PlainNumber, NaN)
+        * Object.is: SameValue of type HeapConstant false
+    * Typed Lowering
+
+        ![](img/exp-1-deopt-typed-lowering.png)
+        * Math.expm1 is replaced by a Call node of type Union(PlainNumber, NaN)
+        * Object.is node is gone? Because of constant folding? And this is when we do experiment 2
+    * Load Elimination nothing changed
+    * Simplified Lowering nothing significantly changed
+
+        ![](img/exp-1-deopt-simplified-lowering.png)
+
+### Experiment 2: Trigger bug at different phases
+
+In the previous experiment, the bug was triggered really soon and constant folding happened, so the node is gone? Let's verify this.
+
+* Find the code that is responsible for the constant folding (ConstantFoldingReducer)
+* Add 1 layer of indirection
+    ```javascript
+    function foo(x, y) {
+        let arr = [MAGIC, MAGIC, MAGIC];
+        let b = Object.is(Math.expm1(x), y);
+        return arr[b * 100];
+    }
+    ```
+    This results in the Object.is call kept as SameValue node of type Boolean until simplified lowering
+
 
 ## Exploitation
 
