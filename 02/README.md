@@ -32,6 +32,8 @@
 
     Still need to dig in to this, but may be it doesn't, because deopt happened.
 
+* Still have problems with the Array layout but this is not the major concern of this task.
+
 ## V8 compilation pipeline (7.3.0)
 
 First, it starts in `src/compiler/pipeline.cc`:
@@ -173,5 +175,8 @@ In the previous experiment, the bug was triggered really soon and constant foldi
 ## Exploitation
 
 * Goals
-    * Avoid the Math.expm1 being convereted to ranges including -0, by making
+    * Avoid the Math.expm1 being convereted to ranges including -0
+        * Need this to be a Call node, specifically for this challenge because the patch is only partially reverted.
+        * A Call node is of type Union(PlainNumber, NaN)
+        * => Therefore, need to deopt so Math.expm1 is made a Call node, by calling the function with a string argument. The first optimized version assume it is always a Number, whether or not it is passed a string the first time.
     * Avoid the Object.is node to be replaced by a false constant, too soon
