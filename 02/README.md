@@ -2,12 +2,13 @@
 
 ## Info
 
-* Date: 06/01/2021 - on-going
+* Date: 06/01/2021 - 09/01/2021
 
 ## Resources
 
 * https://abiondo.me/2019/01/02/exploiting-math-expm1-v8/
 * https://www.jaybosamiya.com/blog/2019/01/02/krautflare/
+* https://de4dcr0w.github.io/35c3ctf-Krautflare%E5%88%86%E6%9E%90.html
 * https://bugs.chromium.org/p/project-zero/issues/detail?id=1710
 * https://confpad.io/2019-04-03-frontcon-2019/7-v8-by-example-a-journey-through-the-compilation-pipeline
 
@@ -161,6 +162,13 @@ TODO
 In the previous experiment, the bug was triggered really soon and constant folding happened, so the node is gone? Let's verify this.
 
 * Find the code that is responsible for the constant folding (ConstantFoldingReducer)
+    ```C++
+    ...
+    if (upper.IsHeapConstant()) {
+        replacement = jsgraph()->Constant(upper.AsHeapConstant()->Ref());
+    }
+    ...
+    ```
 * Add 1 layer of indirection
     ```javascript
     function foo(x, y) {
@@ -171,6 +179,22 @@ In the previous experiment, the bug was triggered really soon and constant foldi
     ```
     This results in the Object.is call kept as SameValue node of type Boolean until simplified lowering
 
+    ![](img/exp-2-samevalue.png)
+
+* The previous code will keep the node until really late but we want to trigger slightly earlier
+
+    ```javascript
+    function foo(x) {
+        let arr = [MAGIC, MAGIC, MAGIC];
+        let o = {mz: -0}
+        let b = Object.is(Math.expm1(x), o.mz);
+        return arr[b * 100];
+    }
+    ```
+
+    This results in the Object.is call kept as SameValue until escape analysis. But it is not folded into false constant. The BCE is performed during simplified lowering so we do not see it anymore here.
+
+    ![](img/exp-2-bound-check-elimination.png)
 
 ## Exploitation
 
@@ -179,4 +203,5 @@ In the previous experiment, the bug was triggered really soon and constant foldi
         * Need this to be a Call node, specifically for this challenge because the patch is only partially reverted.
         * A Call node is of type Union(PlainNumber, NaN)
         * => Therefore, need to deopt so Math.expm1 is made a Call node, by calling the function with a string argument. The first optimized version assume it is always a Number, whether or not it is passed a string the first time.
-    * Avoid the Object.is node to be replaced by a false constant, too soon
+    * Avoid the Object.is node to be replaced by a false constant too soon. If it happens too soon, we will only access the first element, not getting an OOB. If it happens too late, it will make the result of the dependent index a Range type, for example, Range(0, 100), as in the experiment 2 above, and this node will not cause a Bound Check Elimination. We need to find out where the typing happens and make this happen at the proper phase. As mentioned in the bug report, it is the Escape Analysis phase. We cannot let turbofan knows that we are comparing with -0 until this phase.
+* The turbofan-inferred type is the one that causes the bound check elimination, and the actual type is the one we get OOB. For example, turbo fan thinks the range is (0, 0) while the result at runtime can be (0, 100), it will use the first range to optimize graph.
